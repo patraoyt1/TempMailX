@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TempMailX - Final Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        body { 
+            background-color: #0f172a; 
+            color: #e2e8f0; 
+            font-family: 'Inter', sans-serif;
+            background-image: radial-gradient(circle at top right, #1e293b, #0f172a);
+        }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .loader { border-top-color: #3b82f6; animation: spinner 0.8s linear infinite; }
+        @keyframes spinner { to { transform: rotate(360deg); } }
+        .new-mail-pulse { animation: pulse-blue 2s infinite; }
+        @keyframes pulse-blue { 
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); } 
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } 
+        }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex justify-center min-h-screen p-4 md:p-8">
+
+    <div x-data="mailApp()" x-init="init()" x-cloak class="w-full max-w-4xl space-y-6">
+        
+        <div class="text-center space-y-2">
+            <h1 class="text-4xl font-black text-white tracking-tighter flex items-center justify-center gap-3">
+                <i class="fa-solid fa-shield-halved text-blue-500"></i> TempMail<span class="text-blue-500">X</span>
+            </h1>
+            <p class="text-gray-400 text-sm">Privacidade Total • Histórico Ativo</p>
+        </div>
+
+        <div class="glass p-6 rounded-3xl shadow-2xl space-y-5 border-t border-white/10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-blue-400 uppercase ml-1">Prefixo Personalizado</label>
+                    <input type="text" x-model="customUsername" placeholder="Digite o nome desejado..." 
+                        class="w-full bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-2xl outline-none focus:border-blue-500 transition">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase ml-1">Domínio Disponível</label>
+                    <select x-model="selectedDomain" class="w-full bg-slate-900 border border-slate-700 text-white px-3 py-3 rounded-2xl outline-none focus:border-blue-500 transition appearance-none">
+                        <template x-for="dom in domains" :key="dom">
+                            <option :value="dom" x-text="dom"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3 pt-2">
+                <div class="relative flex-1 group">
+                    <input type="text" :value="address" readonly 
+                        class="w-full bg-slate-950 border border-slate-800 text-blue-300 px-5 py-4 rounded-2xl font-mono text-lg outline-none group-hover:border-blue-500/50 transition shadow-inner">
+                    <div x-show="loading" class="absolute right-4 top-4">
+                        <div class="loader w-6 h-6 border-2 border-slate-600 rounded-full"></div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button @click="copyToClipboard()" class="flex-1 md:flex-none bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40">
+                        <i class="fa-solid" :class="copied ? 'fa-check' : 'fa-copy'"></i>
+                        <span x-text="copied ? 'Copiado' : 'Copiar'"></span>
+                    </button>
+                    <button @click="generateNew()" class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-4 rounded-2xl transition border border-slate-700" title="Gerar Novo">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button @click="checkMessages()" class="bg-green-600 hover:bg-green-500 text-white px-6 py-4 rounded-2xl transition" :class="checking && 'animate-pulse'">
+                        <i class="fa-solid fa-arrows-rotate" :class="checking && 'animate-spin'"></i>
+                    </button>
+                </div>
+            </div>
+            <p x-show="error" class="text-red-400 text-[10px] font-bold" x-text="error"></p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="md:col-span-1 space-y-4">
+                <h2 class="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">Histórico</h2>
+                <div class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                    <template x-for="item in history" :key="item.address">
+                        <div @click="restoreSession(item)" 
+                             class="glass p-3 rounded-xl cursor-pointer hover:border-blue-500/50 transition truncate text-[10px] border-l-4"
+                             :class="item.address === address ? 'border-blue-500 bg-blue-500/10' : 'border-transparent'">
+                            <span class="block text-white font-bold" x-text="item.address"></span>
+                            <span class="text-gray-500 text-[9px]">Sessão Salva</span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="md:col-span-3 space-y-4">
+                <div class="flex justify-between items-center px-2">
+                    <h2 class="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                        Inbox Ativa <span class="text-blue-500" x-text="`(${messages.length})`"></span>
+                    </h2>
+                    <span class="text-[9px] text-slate-600" x-text="`Auto-refresh em ${timer}s`"></span>
+                </div>
+
+                <div class="space-y-3">
+                    <template x-for="msg in messages" :key="msg.id">
+                        <div @click="openMessage(msg.id)" class="glass p-5 rounded-2xl cursor-pointer hover:border-blue-500 transition relative overflow-hidden group shadow-lg" :class="!msg.seen && 'new-mail-pulse border-blue-500/30'">
+                            <div class="flex justify-between items-start">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-bold text-blue-400 mb-1" x-text="msg.from.address"></p>
+                                    <h3 class="text-white font-bold truncate text-sm" x-text="msg.subject"></h3>
+                                    <p class="text-[10px] text-slate-500 mt-2" x-text="formatDate(msg.createdAt)"></p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-700 group-hover:text-blue-500 text-xs mt-2"></i>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="messages.length === 0" class="text-center py-20 bg-slate-900/20 border-2 border-dashed border-slate-800 rounded-3xl">
+                        <p class="text-slate-600 text-sm italic">Aguardando novas mensagens...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="viewing" class="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center p-4 backdrop-blur-md" x-transition.opacity>
+            <div @click.outside="viewing = null" class="glass w-full max-w-3xl max-h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl">
+                <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                    <h3 class="font-bold text-white truncate pr-4 text-lg" x-text="viewing?.subject"></h3>
+                    <button @click="viewing = null" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-circle-xmark text-2xl"></i></button>
+                </div>
+                <div class="p-6 overflow-y-auto bg-white text-slate-900">
+                    <div x-html="viewing?.html || viewing?.text"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function mailApp() {
+            return {
+                address: '',
+                token: '',
+                customUsername: '',
+                selectedDomain: '',
+                domains: [],
+                messages: [],
+                history: JSON.parse(localStorage.getItem('tmx_final_history') || '[]'),
+                loading: false,
+                checking: false,
+                copied: false,
+                viewing: null,
+                error: '',
+                timer: 10,
+                lastCount: 0,
+                audio: new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'),
+
+                async init() {
+                    this.audio.volume = 0.5;
+                    await this.loadDomains();
+                    
+                    if (this.history.length > 0) {
+                        this.restoreSession(this.history[0]);
+                    } else {
+                        await this.generateNew();
+                    }
+                    
+                    setInterval(async () => {
+                        if (this.timer <= 1) {
+                            await this.checkMessages();
+                            this.timer = 10;
+                        } else { this.timer--; }
+                    }, 1000);
+                },
+
+                async loadDomains() {
+                    try {
+                        const res = await fetch('https://api.mail.tm/domains');
+                        const data = await res.json();
+                        this.domains = data['hydra:member'].map(d => d.domain);
+                        this.selectedDomain = this.domains[0];
+                    } catch (e) { this.error = "Erro ao conectar com Mail.tm."; }
+                },
+
+                async generateNew() {
+                    this.loading = true;
+                    this.error = '';
+                    let prefix = this.customUsername.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (!prefix) prefix = Math.random().toString(36).substring(2, 10);
+                    
+                    const email = `${prefix}@${this.selectedDomain}`;
+                    const pass = 'pwd' + prefix;
+
+                    try {
+                        const acc = await fetch('https://api.mail.tm/accounts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: email, password: pass })
+                        });
+                        
+                        const auth = await fetch('https://api.mail.tm/token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: email, password: pass })
+                        });
+                        const authData = await auth.json();
+                        
+                        this.address = email;
+                        this.token = authData.token;
+                        this.messages = [];
+                        this.lastCount = 0;
+                        this.addToHistory(email, authData.token);
+                    } catch (e) { 
+                        this.error = "Erro ao criar conta. Tente outro prefixo."; 
+                    } finally { this.loading = false; }
+                },
+
+                addToHistory(address, token) {
+                    this.history = [{address, token}, ...this.history.filter(h => h.address !== address)].slice(0, 10);
+                    localStorage.setItem('tmx_final_history', JSON.stringify(this.history));
+                },
+
+                restoreSession(item) {
+                    this.address = item.address;
+                    this.token = item.token;
+                    this.messages = [];
+                    this.checkMessages();
+                },
+
+                async checkMessages() {
+                    if (!this.token || this.checking) return;
+                    this.checking = true;
+                    try {
+                        const res = await fetch('https://api.mail.tm/messages', {
+                            headers: { 'Authorization': `Bearer ${this.token}` }
+                        });
+                        const data = await res.json();
+                        const msgs = data['hydra:member'];
+
+                        if (msgs.length > this.lastCount) {
+                            this.audio.play().catch(() => {});
+                            document.title = "🔔 Novo E-mail!";
+                            setTimeout(() => document.title = "TempMailX", 4000);
+                        }
+                        this.messages = msgs;
+                        this.lastCount = msgs.length;
+                    } catch (e) {}
+                    finally { this.checking = false; }
+                },
+
+                async openMessage(id) {
+                    try {
+                        const res = await fetch(`https://api.mail.tm/messages/${id}`, {
+                            headers: { 'Authorization': `Bearer ${this.token}` }
+                        });
+                        this.viewing = await res.json();
+                        this.messages = this.messages.map(m => m.id === id ? {...m, seen: true} : m);
+                    } catch (e) { alert("Erro ao carregar conteúdo."); }
+                },
+
+                copyToClipboard() {
+                    navigator.clipboard.writeText(this.address);
+                    this.copied = true;
+                    setTimeout(() => this.copied = false, 2000);
+                },
+
+                formatDate(d) { return new Date(d).toLocaleTimeString('pt-BR'); }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</body>
+</html>
