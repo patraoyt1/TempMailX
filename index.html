@@ -84,14 +84,24 @@
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="md:col-span-1 space-y-4">
-                <h2 class="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">Histórico</h2>
+                <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Histórico</h2>
                 <div class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                     <template x-for="item in history" :key="item.address">
                         <div @click="restoreSession(item)" 
-                             class="glass p-3 rounded-xl cursor-pointer hover:border-blue-500/50 transition truncate text-[10px] border-l-4"
+                             class="glass p-3 rounded-xl cursor-pointer hover:border-blue-500/50 transition border-l-4 relative group"
                              :class="item.address === address ? 'border-blue-500 bg-blue-500/10' : 'border-transparent'">
-                            <span class="block text-white font-bold" x-text="item.address"></span>
-                            <span class="text-gray-500 text-[9px]">Sessão Salva</span>
+                            
+                            <div class="flex justify-between items-center overflow-hidden">
+                                <div class="truncate mr-2">
+                                    <span class="block text-white font-bold text-[10px] truncate" x-text="item.address"></span>
+                                    <span class="text-gray-500 text-[9px]">Sessão Salva</span>
+                                </div>
+                                <button @click.stop="removeFromHistory(item.address)" 
+                                        class="text-slate-600 hover:text-red-500 transition-colors p-1"
+                                        title="Remover do Histórico">
+                                    <i class="fa-solid fa-trash-can text-[11px]"></i>
+                                </button>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -220,6 +230,22 @@
                 addToHistory(address, token) {
                     this.history = [{address, token}, ...this.history.filter(h => h.address !== address)].slice(0, 10);
                     localStorage.setItem('tmx_final_history', JSON.stringify(this.history));
+                },
+
+                removeFromHistory(address) {
+                    // Remove do array local
+                    this.history = this.history.filter(h => h.address !== address);
+                    // Atualiza o armazenamento local
+                    localStorage.setItem('tmx_final_history', JSON.stringify(this.history));
+                    
+                    // Se remover o endereço que está visualizando agora, limpa a tela ou gera um novo
+                    if (this.address === address) {
+                        if (this.history.length > 0) {
+                            this.restoreSession(this.history[0]);
+                        } else {
+                            this.generateNew();
+                        }
+                    }
                 },
 
                 restoreSession(item) {
